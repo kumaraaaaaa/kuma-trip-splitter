@@ -1,0 +1,67 @@
+/* 配色系統 */
+:root {
+    --bear-brown: #8B5E3C;
+    --honey-color: #EBC8A5;
+    --cream-bg: #FFFBF5;
+    --text-dark: #5D4037;
+    --danger-soft: #d97777;
+    --success-soft: #709c70;
+}
+body { background-color: var(--cream-bg); font-family: "Noto Sans TC", sans-serif; padding-bottom: 90px; color: var(--text-dark); margin: 0; }
+
+/* 限制全域最大寬度以適應電腦大螢幕 */
+.container-app { max-width: 800px; margin: 0 auto; width: 100%; }
+
+.card { border: none; border-radius: 20px; box-shadow: 0 10px 25px rgba(139, 94, 60, 0.1); margin-bottom: 24px; background-color: #fff; }
+.hidden { display: none !important; }
+.section-title { border-left: 6px solid var(--bear-brown); padding-left: 15px; font-weight: 800; color: var(--text-dark); margin-bottom: 20px; }
+
+/* 統一頂部導航高度與樣式 */
+.navbar { background-color: var(--bear-brown) !important; min-height: 80px; border-bottom: 3px solid var(--honey-color); box-shadow: 0 4px 10px rgba(139, 94, 60, 0.2); }
+.header-bar { 
+    position: sticky; top: 0; 
+    background-color: var(--bear-brown); color: #fff; 
+    z-index: 999; min-height: 80px; 
+    display: flex; align-items: center;
+    border-bottom: 3px solid var(--honey-color); 
+    box-shadow: 0 4px 10px rgba(139, 94, 60, 0.2);
+}
+
+.btn-primary { background-color: var(--bear-brown) !important; border-color: var(--bear-brown) !important; color: #fff !important; }
+.btn-primary:hover { background-color: #6F4E37 !important; border-color: #6F4E37 !important; }
+.text-primary { color: var(--bear-brown) !important; }
+.border-primary { border-color: var(--bear-brown) !important; }
+
+.btn-header-back { color: #fff; border-color: rgba(255,255,255,0.5); }
+.btn-header-back:hover { background-color: rgba(255,255,255,0.2); color: #fff; }
+
+/* 底部導航 */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 75px; background: #fff; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -4px 15px rgba(139, 94, 60, 0.1); z-index: 1000; border-top: 1px solid var(--honey-color); }
+.nav-item { text-align: center; color: #a67c52; font-size: 0.8rem; cursor: pointer; transition: 0.2s; flex: 1; }
+.nav-item.active { color: var(--bear-brown); font-weight: bold; }
+.nav-item i { font-size: 1.6rem; display: block; margin-bottom: 4px; }
+
+/* 互動元素 */
+.action-icon { cursor: pointer; margin-left: 10px; color: #a67c52; }
+.fab-btn { background-color: var(--bear-brown); color: #fff; position: fixed; bottom: 95px; right: 25px; width: 60px; height: 60px; border-radius: 50%; font-size: 24px; box-shadow: 0 4px 15px rgba(139, 94, 60, 0.3); z-index: 1050; display: flex; justify-content: center; align-items: center; border: none; transition: 0.2s; }
+.fab-btn:hover { transform: scale(1.05); background-color: #6F4E37; color: #fff; }
+
+.bg-readonly { background-color: #fdf5ec !important; color: #8B5E3C !important; pointer-events: none; opacity: 0.7; }
+.inactive-user { text-decoration: line-through; color: #c5a083; }
+#manualAddBtn:disabled, #addPayerBtn:disabled { background-color: #f8f1eb !important; color: #c5a083 !important; border-color: #e5d3c3 !important; cursor: not-allowed; }
+
+/* 篩選工具列 */
+.filter-bar { background-color: #fdf5ec; border-radius: 12px; padding: 15px; border: 1px solid #e5d3c3; margin-bottom: 15px; }
+
+/* 即時同步通知標籤：修復卡在左上角的問題 */
+#syncToast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1060; transition: opacity 0.5s; opacity: 0; pointer-events: none; background-color: var(--bear-brown) !important; color: #fff; border-radius: 50px; }
+
+/* 登入畫面排版 */
+.auth-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--cream-bg); padding: 20px; }
+.auth-card { background: white; border-radius: 24px; padding: 40px; width: 100%; max-width: 400px; box-shadow: 0 20px 40px rgba(139, 94, 60, 0.15); border: 2px solid var(--honey-color); }
+.cursor-pointer { cursor: pointer; transition: 0.2s; }
+.cursor-pointer:hover { background-color: #fdf5ec !important; }
+
+/* 交換按鈕 */
+.swap-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #e2e8f0; background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.swap-btn:hover { border-color: var(--bear-brown); color: var(--bear-brown); transform: rotate(180deg); }

@@ -1,4 +1,3 @@
-# 在資料夾內建立 .gitignore 檔案
-echo "__pycache__/" > .gitignore
-echo ".env" >> .gitignore
-echo ".venv/" >> .gitignore
+pycache/
+.env
+.venv/

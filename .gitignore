@@ -1,3 +1,12 @@
-pycache/
+# 忽略 Python 編譯後的快取檔案
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 忽略環境設定與套件目錄
+node_modules/
 .env
 .venv/
+env/
+.DS_Store

@@ -105,27 +105,32 @@
             <div class="card p-3 mt-2 border-0 shadow-sm">
                 <h5 class="section-title text-secondary border-secondary">帳目明細</h5>
                 
-                <!-- 優化後的兩排篩選工具列 -->
                 <div class="filter-bar">
-                    <!-- 第一排：搜尋與幣別 -->
                     <div class="row g-2 mb-2">
-                        <div class="col-md-8 col-7">
+                        <div class="col-12">
                             <input type="text" id="filterKeyword" class="form-control form-control-sm" placeholder="搜尋關鍵字..." oninput="renderExpenseRecords()">
                         </div>
-                        <div class="col-md-4 col-5">
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <select id="filterType" class="form-select form-select-sm text-primary fw-bold" onchange="renderExpenseRecords()">
+                                <option value="all">所有帳目</option>
+                                <option value="shared">共同花費</option>
+                                </select>
+                        </div>
+                        <div class="col-6">
                             <select id="filterCurrency" class="form-select form-select-sm" onchange="renderExpenseRecords()">
                                 <option value="">所有幣別</option>
                             </select>
                         </div>
                     </div>
-                    <!-- 第二排：日期區間與排序按鈕 -->
                     <div class="row g-2 align-items-center">
                         <div class="col-md-7 col-12 d-flex align-items-center gap-2">
                             <input type="date" id="filterStartDate" class="form-control form-control-sm text-muted" onchange="renderExpenseRecords()">
                             <span class="text-muted small fw-bold">至</span>
                             <input type="date" id="filterEndDate" class="form-control form-control-sm text-muted" onchange="renderExpenseRecords()">
                         </div>
-                        <div class="col-md-5 col-12 d-flex gap-2">
+                        <div class="col-md-5 col-12 d-flex gap-2 mt-2 mt-md-0">
                             <button class="btn btn-sm btn-white border flex-grow-1 shadow-sm fw-bold bg-white text-primary" id="sortOrderBtn" onclick="toggleSortOrder()">
                                 <i class="fa-solid fa-arrow-down-wide-short"></i> 新到舊
                             </button>
@@ -696,17 +701,58 @@
 
     async function fetchExpenseRecords() {
         allExpensesCache = await apiFetch(`/trips/${tid}/expenses`); 
-        updateCurrencyFilterOptions(); renderExpenseRecords();
+        updateCurrencyFilterOptions(); 
+        updateTypeFilterOptions(); // 新增：同時更新類型選單
+        renderExpenseRecords();
     }
     function updateCurrencyFilterOptions() {
         const filterSelect = document.getElementById('filterCurrency'), currentSelected = filterSelect.value, usedCurrencies = [...new Set(allExpensesCache.map(e => e.currency))];
         let optionsHtml = '<option value="">所有幣別</option>'; usedCurrencies.forEach(c => { optionsHtml += `<option value="${c}">${currencyFlagMap[c] || c}</option>`; });
         filterSelect.innerHTML = optionsHtml; if (usedCurrencies.includes(currentSelected)) filterSelect.value = currentSelected;
     }
+    function updateTypeFilterOptions() {
+        const filterSelect = document.getElementById('filterType');
+        if (!filterSelect) return;
+        const currentSelected = filterSelect.value;
+        let optionsHtml = '<option value="all">所有帳目</option><option value="shared">👥 共同花費</option>';
+        users.filter(u => u.is_active).forEach(u => {
+            optionsHtml += `<option value="personal_${u.id}">👤 ${u.name} (個人自費)</option>`;
+        });
+        filterSelect.innerHTML = optionsHtml;
+        if (Array.from(filterSelect.options).some(o => o.value === currentSelected)) {
+            filterSelect.value = currentSelected;
+        } else {
+            filterSelect.value = 'all';
+        }
+    }
     function renderExpenseRecords() {
-        const keyword = document.getElementById('filterKeyword').value.toLowerCase(), curr = document.getElementById('filterCurrency').value, start = document.getElementById('filterStartDate').value, end = document.getElementById('filterEndDate').value;
-        let filtered = allExpensesCache.filter(e => { return e.description.toLowerCase().includes(keyword) && (curr === "" || e.currency === curr) && (start === "" || e.consumption_date >= start) && (end === "" || e.consumption_date <= end); });
+        const keyword = document.getElementById('filterKeyword').value.toLowerCase();
+        const curr = document.getElementById('filterCurrency').value;
+        const start = document.getElementById('filterStartDate').value;
+        const end = document.getElementById('filterEndDate').value;
+        const type = document.getElementById('filterType').value; // 抓取類型設定
+
+        let filtered = allExpensesCache.filter(e => {
+            // 核心邏輯判斷：是否為「純個人自費」(只有1人付款，且只有同1人分攤)
+            const isPersonal = (e.payments.length === 1 && e.splits.length === 1 && e.payments[0].user_id === e.splits[0].user_id);
+            
+            let typeMatch = true;
+            if (type === 'shared') {
+                typeMatch = !isPersonal; // 排除個人自費，剩下的全部算共同花費
+            } else if (type.startsWith('personal_')) {
+                const uid = parseInt(type.split('_')[1]);
+                typeMatch = (isPersonal && e.payments[0].user_id === uid); // 必須是指定的該成員個人自費
+            }
+
+            return typeMatch && 
+                   e.description.toLowerCase().includes(keyword) && 
+                   (curr === "" || e.currency === curr) && 
+                   (start === "" || e.consumption_date >= start) && 
+                   (end === "" || e.consumption_date <= end); 
+        });
+
         filtered.sort((a, b) => { let timeA = new Date(`${a.consumption_date}T${a.consumption_time}`).getTime(), timeB = new Date(`${b.consumption_date}T${b.consumption_time}`).getTime(); return sortDesc ? timeB - timeA : timeA - timeB; });
+        
         document.getElementById('expenseRecordList').innerHTML = filtered.map(e => `
             <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3" style="cursor: pointer; border-left: 5px solid var(--bear-brown);" onclick="openDetailModal(${e.id})">
                 <div style="flex: 1;"><div class="fw-bold text-dark mb-1" style="font-size: 1.1rem;">${e.description}</div><div class="small text-muted"><i class="fa-regular fa-clock me-1"></i>${e.consumption_date} <span class="ms-1">${e.consumption_time}</span></div></div>
@@ -730,7 +776,16 @@
     }
 
     function toggleSortOrder() { sortDesc = !sortDesc; document.getElementById('sortOrderBtn').innerHTML = sortDesc ? '<i class="fa-solid fa-arrow-down-wide-short text-primary"></i> 新到舊' : '<i class="fa-solid fa-arrow-up-short-wide text-primary"></i> 舊到新'; renderExpenseRecords(); }
-    function clearFilters() { document.getElementById('filterKeyword').value = ''; document.getElementById('filterCurrency').value = ''; document.getElementById('filterStartDate').value = ''; document.getElementById('filterEndDate').value = ''; sortDesc = true; document.getElementById('sortOrderBtn').innerHTML = '<i class="fa-solid fa-arrow-down-wide-short text-primary"></i> 新到舊'; renderExpenseRecords(); }
+    function clearFilters() { 
+        document.getElementById('filterKeyword').value = ''; 
+        document.getElementById('filterCurrency').value = ''; 
+        document.getElementById('filterType').value = 'all'; // 記得一起清除類型設定
+        document.getElementById('filterStartDate').value = ''; 
+        document.getElementById('filterEndDate').value = ''; 
+        sortDesc = true; 
+        document.getElementById('sortOrderBtn').innerHTML = '<i class="fa-solid fa-arrow-down-wide-short text-primary"></i> 新到舊'; 
+        renderExpenseRecords(); 
+    }
 
     async function fetchSettlement() {
         const data = await apiFetch(`/trips/${tid}/settlement`);

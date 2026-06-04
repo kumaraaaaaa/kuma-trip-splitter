@@ -272,20 +272,19 @@
 
     // WebSocket 即時同步系統
     function connectWebSocket(tripId) {
-        // 如果有舊的定時器，先清除
         if (syncInterval) clearInterval(syncInterval);
         
-        // 設定每 5 秒鐘默默在背景去後端抓一次最新資料
+        // 每 10 秒默默檢查一次
         syncInterval = setInterval(async () => {
-            if (isRefreshing) return;
-            try {
-                // 這裡我們不顯示 Toast 動畫，以免每 5 秒閃一次干擾使用者，讓它默默更新就好
-                await refreshUsers(); 
-                await fetchExpenseRecords(); 
-                await fetchSettlement(); 
+            // 如果畫面正在載入，或是「新增/編輯帳目表單」正在開啟中，就跳過這次刷新，保護使用者的輸入
+            const isFormOpen = !document.getElementById('view-form').classList.contains('hidden');
+            if (isRefreshing || is_loading_edit || isFormOpen) return;
+
+            try { 
+                await triggerGlobalRefresh(); 
             } 
             catch (e) { console.error("背景同步失敗", e); } 
-        }, 5000); // 5000 毫秒 = 5 秒
+        }, 10000); // 10 秒
     }
 
     // API 攔截器
@@ -294,6 +293,9 @@
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['x-user-id'] = appUser.id.toString();
+
+        const separator = url.includes('?') ? '&' : '?';
+        const urlWithTimestamp = `${url}${separator}_t=${new Date().getTime()}`;
 
         const res = await fetch(url, options);
         if (res.status === 401) { logout(); throw new Error("授權失敗"); }

@@ -79,14 +79,12 @@
     <!-- 頂部導航 -->
     <div class="header-bar">
         <div class="container-app d-flex justify-content-between align-items-center px-3 w-100">
-            <div class="d-flex align-items-center flex-grow-1 pe-3" style="min-width: 0;">
+            <div class="d-flex align-items-center flex-grow-1 text-truncate pe-3">
                 <button class="btn btn-sm btn-header-back rounded-circle shadow-sm flex-shrink-0" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;" onclick="goHome()">
                     <i class="fa-solid fa-arrow-left"></i>
                 </button>
-                
                 <h4 id="currentTripTitle" class="mb-0 fw-bold text-truncate ms-3" style="font-size: 1.3rem;"></h4>
-                
-                <button class="btn btn-sm btn-light text-primary fw-bold ms-2 flex-shrink-0 shadow-sm" onclick="triggerGlobalRefresh()" title="同步最新帳目">
+                <button class="btn btn-sm text-primary ms-2 flex-shrink-0" onclick="triggerGlobalRefresh()" title="同步最新帳目">
                     <i class="fa-solid fa-rotate"></i> 更新
                 </button>
             </div>
@@ -328,15 +326,7 @@
     let currentTripCode = localStorage.getItem('currentTripCode') || "";
     let currentTripTitle = localStorage.getItem('currentTripTitle') || "";
     let users = [], is_loading_edit = false, allExpensesCache = [], sortDesc = true;
-    let ws = null; 
     let isRefreshing = false;
-    let syncInterval = null;
-
-    // WebSocket 即時同步系統
-    function connectWebSocket(tripId) {
-        if (syncInterval) clearInterval(syncInterval);
-        // 裡面什麼都不用做，讓網頁在背景時完全休息！
-    }
 
     // API 攔截器
     async function apiFetch(url, options = {}) {
@@ -387,15 +377,12 @@
         } catch (e) { alert("連線錯誤"); }
     }
 
-    function logout() { appUser = null; localStorage.removeItem('appUser'); if (syncInterval) clearInterval(syncInterval); checkAuth(); }
+    function logout() { appUser = null; localStorage.removeItem('appUser'); checkAuth(); }
     function goHome() { 
            tid = null; 
            localStorage.removeItem('currentTid');
            localStorage.removeItem('currentTripCode');
            localStorage.removeItem('currentTripTitle');
-           
-           // 清除定時器取代關閉 ws
-           if (syncInterval) { clearInterval(syncInterval); syncInterval = null; } 
            
            document.getElementById('pageDetail').classList.add('hidden'); 
            document.getElementById('pageList').classList.remove('hidden'); 
@@ -837,8 +824,6 @@
         localStorage.setItem('currentTripTitle', title || "");
         document.getElementById('pageList').classList.add('hidden'); document.getElementById('pageDetail').classList.remove('hidden'); 
         document.getElementById('currentTripTitle').innerText = title; document.getElementById('tripInviteCode').innerText = invite_code;
-        
-        connectWebSocket(id); 
 
         setNow(); await triggerGlobalRefresh(); 
         const activeCount = users.filter(u => u.is_active).length;

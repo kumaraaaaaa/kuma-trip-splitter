@@ -1,18 +1,20 @@
-import json
 import httpx
 import random
 import string
-from fastapi import FastAPI, Depends, HTTPException, Header, WebSocket, WebSocketDisconnect, BackgroundTasks
+import os
+from typing import List, Dict, Optional
+
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from passlib.context import CryptContext
-from typing import List, Dict, Optional
+
 import models
-import os
 
 # 密碼雜湊設定 (使用 bcrypt 演算法)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -50,43 +52,7 @@ def get_db():
     finally: db.close()
 
 # ==============================
-# 1. WebSocket 即時通訊廣播中心
-# ==============================
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[int, List[WebSocket]] = {}
-
-    async def connect(self, websocket: WebSocket, trip_id: int):
-        await websocket.accept()
-        if trip_id not in self.active_connections:
-            self.active_connections[trip_id] = []
-        self.active_connections[trip_id].append(websocket)
-
-    def disconnect(self, websocket: WebSocket, trip_id: int):
-        if trip_id in self.active_connections and websocket in self.active_connections[trip_id]:
-            self.active_connections[trip_id].remove(websocket)
-
-    async def broadcast(self, trip_id: int, message: str):
-        if trip_id in self.active_connections:
-            for connection in self.active_connections[trip_id]:
-                try:
-                    await connection.send_text(message)
-                except:
-                    pass # 忽略已斷線的用戶
-
-manager = ConnectionManager()
-
-@app.websocket("/ws/trips/{trip_id}")
-async def websocket_endpoint(websocket: WebSocket, trip_id: int):
-    await manager.connect(websocket, trip_id)
-    try:
-        while True:
-            await websocket.receive_text() # 保持連線
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, trip_id)
-
-# ==============================
-# 2. Pydantic Schemas (資料驗證)
+# Pydantic Schemas (資料驗證)
 # ==============================
 class AuthData(BaseModel):
     username: str
@@ -116,7 +82,7 @@ class RepaymentCreate(BaseModel):
     amount: float
 
 # ==============================
-# 3. 認證系統 (Auth API)
+# 認證系統 (Auth API)
 # ==============================
 @app.post("/auth/register")
 def register(data: AuthData, db: Session = Depends(get_db)):
@@ -141,7 +107,7 @@ def login(data: AuthData, db: Session = Depends(get_db)):
     return {"id": u.id, "username": u.username}
 
 # ==============================
-# 4. 路由系統
+# 路由系統
 # ==============================
 @app.get("/", response_class=HTMLResponse)
 def read_root():
@@ -206,39 +172,35 @@ def get_trip_users(trip_id: int, db: Session = Depends(get_db)):
     return db.query(models.User).filter(models.User.trip_id == trip_id).all()
 
 @app.post("/trips/{trip_id}/users")
-def create_trip_user(trip_id: int, name: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def create_trip_user(trip_id: int, name: str, db: Session = Depends(get_db)):
     new_user = models.User(name=name, trip_id=trip_id)
     db.add(new_user); db.commit(); db.refresh(new_user)
-    background_tasks.add_task(manager.broadcast, trip_id, "refresh") # 觸發同步
     return new_user
 
 @app.put("/users/{user_id}")
-def update_user(user_id: int, name: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def update_user(user_id: int, name: str, db: Session = Depends(get_db)):
     u = db.query(models.User).filter(models.User.id == user_id).first()
     if u: 
         u.name = name; db.commit()
-        background_tasks.add_task(manager.broadcast, u.trip_id, "refresh")
     return u
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def delete_user(user_id: int, db: Session = Depends(get_db)):
     u = db.query(models.User).filter(models.User.id == user_id).first()
     if u: 
         u.is_active = False; db.commit()
-        background_tasks.add_task(manager.broadcast, u.trip_id, "refresh")
     return {"status": "ok"}
 
 @app.put("/users/{user_id}/restore")
-def restore_user(user_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def restore_user(user_id: int, db: Session = Depends(get_db)):
     u = db.query(models.User).filter(models.User.id == user_id).first()
     if u: 
         u.is_active = True; db.commit()
-        background_tasks.add_task(manager.broadcast, u.trip_id, "refresh")
     return {"status": "ok"}
 
 # --- 帳目管理 ---
 @app.post("/expenses")
-def create_expense(exp: ExpenseCreate, trip_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def create_expense(exp: ExpenseCreate, trip_id: int, db: Session = Depends(get_db)):
     new_exp = models.Expense(
         trip_id=trip_id, amount=exp.amount, currency=exp.currency,
         exchange_rate=exp.exchange_rate, description=exp.description,
@@ -248,7 +210,6 @@ def create_expense(exp: ExpenseCreate, trip_id: int, background_tasks: Backgroun
     for p in exp.payments: db.add(models.ExpensePayment(expense_id=new_exp.id, user_id=p.user_id, amount_paid=p.amount_paid))
     for s in exp.splits: db.add(models.ExpenseSplit(expense_id=new_exp.id, debtor_id=s.user_id, amount_owed=s.amount_owed))
     db.commit()
-    background_tasks.add_task(manager.broadcast, trip_id, "refresh")
     return {"status": "success"}
 
 @app.get("/expenses/{expense_id}")
@@ -262,7 +223,7 @@ def get_expense_detail(expense_id: int, db: Session = Depends(get_db)):
     }
 
 @app.put("/expenses/{expense_id}")
-def update_expense(expense_id: int, exp: ExpenseCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def update_expense(expense_id: int, exp: ExpenseCreate, db: Session = Depends(get_db)):
     e = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if not e: raise HTTPException(status_code=404)
     e.description, e.amount, e.currency, e.exchange_rate = exp.description, exp.amount, exp.currency, exp.exchange_rate
@@ -272,16 +233,14 @@ def update_expense(expense_id: int, exp: ExpenseCreate, background_tasks: Backgr
     for p in exp.payments: db.add(models.ExpensePayment(expense_id=e.id, user_id=p.user_id, amount_paid=p.amount_paid))
     for s in exp.splits: db.add(models.ExpenseSplit(expense_id=e.id, debtor_id=s.user_id, amount_owed=s.amount_owed))
     db.commit()
-    background_tasks.add_task(manager.broadcast, e.trip_id, "refresh")
     return {"status": "ok"}
 
 @app.delete("/expenses/{expense_id}")
-def delete_expense(expense_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     e = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if e: 
         trip_id = e.trip_id
         db.delete(e); db.commit()
-        background_tasks.add_task(manager.broadcast, trip_id, "refresh")
     return {"status": "ok"}
 
 @app.get("/trips/{trip_id}/expenses")
@@ -305,10 +264,9 @@ def get_trip_expenses(trip_id: int, db: Session = Depends(get_db)):
 
 # --- 還款管理 ---
 @app.post("/trips/{trip_id}/repayments")
-def create_repayment(trip_id: int, rep: RepaymentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def create_repayment(trip_id: int, rep: RepaymentCreate, db: Session = Depends(get_db)):
     new_rep = models.Repayment(trip_id=trip_id, sender_id=rep.sender_id, receiver_id=rep.receiver_id, amount=rep.amount)
     db.add(new_rep); db.commit()
-    background_tasks.add_task(manager.broadcast, trip_id, "refresh")
     return {"status": "success"}
 
 @app.get("/trips/{trip_id}/repayments")
@@ -316,20 +274,18 @@ def get_repayments(trip_id: int, db: Session = Depends(get_db)):
     return db.query(models.Repayment).filter(models.Repayment.trip_id == trip_id).order_by(models.Repayment.created_at.desc()).all()
 
 @app.put("/repayments/{repayment_id}")
-def update_repayment(repayment_id: int, rep: RepaymentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def update_repayment(repayment_id: int, rep: RepaymentCreate, db: Session = Depends(get_db)):
     r = db.query(models.Repayment).filter(models.Repayment.id == repayment_id).first()
     if r: 
         r.sender_id, r.receiver_id, r.amount = rep.sender_id, rep.receiver_id, rep.amount; db.commit()
-        background_tasks.add_task(manager.broadcast, r.trip_id, "refresh")
     return {"status": "ok"}
 
 @app.delete("/repayments/{repayment_id}")
-def delete_repayment(repayment_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def delete_repayment(repayment_id: int, db: Session = Depends(get_db)):
     r = db.query(models.Repayment).filter(models.Repayment.id == repayment_id).first()
     if r: 
         trip_id = r.trip_id
         db.delete(r); db.commit()
-        background_tasks.add_task(manager.broadcast, trip_id, "refresh")
     return {"status": "ok"}
 
 # --- 結算核心 ---

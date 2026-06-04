@@ -73,9 +73,16 @@
                     <i class="fa-solid fa-arrow-left"></i>
                 </button>
                 <h4 id="currentTripTitle" class="mb-0 fw-bold text-truncate ms-3" style="font-size: 1.3rem;"></h4>
-                <button class="btn btn-sm text-primary ms-2" onclick="triggerGlobalRefresh()" title="同步最新帳目">
-                    <i class="fa-solid fa-rotate"></i>
-                </button>
+                <div class="d-flex align-items-center flex-grow-1 text-truncate pe-3">
+                    <button class="btn btn-sm btn-header-back rounded-circle shadow-sm" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;" onclick="goHome()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h4 id="currentTripTitle" class="mb-0 fw-bold text-truncate ms-3" style="font-size: 1.3rem;"></h4>
+                    
+                    <button class="btn btn-sm text-primary ms-2" onclick="triggerGlobalRefresh()" title="同步最新帳目">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
             </div>
             <div class="bg-light rounded px-3 py-1 shadow-sm text-center cursor-pointer flex-shrink-0" onclick="copyInviteCode()" title="點擊複製邀請碼" style="border: 2px solid var(--honey-color); color: var(--text-dark);">
                 <span class="small d-block fw-bold" style="font-size: 0.65rem;">專屬邀請碼</span>

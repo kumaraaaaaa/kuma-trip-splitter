@@ -2,7 +2,7 @@ import httpx
 import random
 import string
 import os
-from typing import List, Dict, Optional
+from typing import List
 
 from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.responses import HTMLResponse
@@ -35,7 +35,7 @@ DATABASE_URL = os.getenv(
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# SQLite 需要 check_same_thread，但 Supabase (PostgreSQL) 不需要
+# SQLite 需要 check_same_thread，Supabase (PostgreSQL) 不需要
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
@@ -246,7 +246,6 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
 @app.get("/trips/{trip_id}/expenses")
 def get_trip_expenses(trip_id: int, db: Session = Depends(get_db)):
     expenses = db.query(models.Expense).filter(models.Expense.trip_id == trip_id).order_by(models.Expense.consumption_date.desc(), models.Expense.consumption_time.desc()).all()
-    
     # 手動把「付款人」與「分攤人」的詳細資料包裝進去，讓前端篩選器可以讀取
     return [
         {

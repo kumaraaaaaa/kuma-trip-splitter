@@ -17,7 +17,7 @@
 <!-- 即時更新通知 -->
 <div id="syncToast" class="badge shadow fs-6 py-2 px-3"><i class="fa-solid fa-arrows-rotate fa-spin me-2"></i>資料已即時更新</div>
 
-<!-- 畫面 0: 登入/註冊系統 -->
+<!-- 登入/註冊 -->
 <div id="pageAuth" class="auth-wrapper hidden">
     <div class="auth-card text-center">
         <div style="font-size: 4rem; margin-bottom: 10px;">🧸</div>
@@ -450,7 +450,7 @@
                 toast.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin me-2"></i>同步資料中...';
                 toast.style.opacity = '1';
             }
-            
+
             await refreshUsers(); 
             await fetchExpenseRecords(); 
             await fetchSettlement(); 
@@ -689,7 +689,7 @@
     async function fetchExpenseRecords() {
         allExpensesCache = await apiFetch(`/trips/${tid}/expenses`); 
         updateCurrencyFilterOptions(); 
-        updateTypeFilterOptions(); // 新增：同時更新類型選單
+        updateTypeFilterOptions(); // 同時更新類型選單
         renderExpenseRecords();
     }
     function updateCurrencyFilterOptions() {

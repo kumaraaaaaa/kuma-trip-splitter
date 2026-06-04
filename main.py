@@ -323,14 +323,19 @@ def get_settlement(trip_id: int, db: Session = Depends(get_db)):
     users = db.query(models.User).filter(models.User.trip_id == trip_id).all()
     expenses = db.query(models.Expense).filter(models.Expense.trip_id == trip_id).all()
     repayments = db.query(models.Repayment).filter(models.Repayment.trip_id == trip_id).all()
-    summary = {u.id: {"name": u.name, "initial": 0.0, "current": 0.0, "is_active": u.is_active} for u in users}
+    
+    # 在摘要字典裡加上 "total_expense": 0.0 的初始值
+    summary = {u.id: {"name": u.name, "initial": 0.0, "current": 0.0, "is_active": u.is_active, "total_expense": 0.0} for u in users}
     
     for e in expenses:
         for p in e.payments:
             if p.user_id in summary: summary[p.user_id]["initial"] += p.amount_paid * e.exchange_rate
         for s in e.splits:
-            if s.debtor_id in summary: summary[s.debtor_id]["initial"] -= s.amount_owed * e.exchange_rate
-            
+            if s.debtor_id in summary:
+                summary[s.debtor_id]["initial"] -= s.amount_owed * e.exchange_rate
+                # 同時累加這筆花費到該成員的「個人總花費」中 (換算為台幣)
+                summary[s.debtor_id]["total_expense"] += s.amount_owed * e.exchange_rate
+                
     for uid in summary: summary[uid]["current"] = summary[uid]["initial"]
     
     for r in repayments:
@@ -341,7 +346,8 @@ def get_settlement(trip_id: int, db: Session = Depends(get_db)):
     current_debt = sum(abs(v["current"]) for v in summary.values() if v["current"] < 0)
     progress = ((initial_debt - current_debt) / initial_debt * 100) if initial_debt > 0 else 100.0
     
-    balances = [{"name": data["name"], "balance": round(data["current"], 0), "status": "仍應收回" if data["current"] >= 0 else "仍應補繳"} for uid, data in summary.items() if data["is_active"] or abs(data["current"]) > 1.0]
+    # 把 total_expense 加進最終回傳的清單中
+    balances = [{"name": data["name"], "balance": round(data["current"], 0), "status": "仍應收回" if data["current"] >= 0 else "仍應補繳", "total_expense": round(data["total_expense"], 0)} for uid, data in summary.items() if data["is_active"] or abs(data["current"]) > 1.0]
     return {"balances": balances, "progress": round(max(0, min(100, progress)), 1)}
 
 if __name__ == "__main__":

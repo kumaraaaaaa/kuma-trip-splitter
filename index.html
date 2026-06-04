@@ -73,6 +73,9 @@
                     <i class="fa-solid fa-arrow-left"></i>
                 </button>
                 <h4 id="currentTripTitle" class="mb-0 fw-bold text-truncate ms-3" style="font-size: 1.3rem;"></h4>
+                <button class="btn btn-sm text-primary ms-2" onclick="triggerGlobalRefresh()" title="同步最新帳目">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
             </div>
             <div class="bg-light rounded px-3 py-1 shadow-sm text-center cursor-pointer flex-shrink-0" onclick="copyInviteCode()" title="點擊複製邀請碼" style="border: 2px solid var(--honey-color); color: var(--text-dark);">
                 <span class="small d-block fw-bold" style="font-size: 0.65rem;">專屬邀請碼</span>
@@ -273,18 +276,7 @@
     // WebSocket 即時同步系統
     function connectWebSocket(tripId) {
         if (syncInterval) clearInterval(syncInterval);
-        
-        // 每 10 秒默默檢查一次
-        syncInterval = setInterval(async () => {
-            // 如果畫面正在載入，或是「新增/編輯帳目表單」正在開啟中，就跳過這次刷新，保護使用者的輸入
-            const isFormOpen = !document.getElementById('view-form').classList.contains('hidden');
-            if (isRefreshing || is_loading_edit || isFormOpen) return;
-
-            try { 
-                await triggerGlobalRefresh(); 
-            } 
-            catch (e) { console.error("背景同步失敗", e); } 
-        }, 10000); // 10 秒
+        // 裡面什麼都不用做，讓網頁在背景時完全休息！
     }
 
     // API 攔截器
@@ -365,13 +357,22 @@
         }
     }
 
-    function switchTab(viewName) {
+    async function switchTab(viewName) {
         if (users.filter(u => u.is_active).length < 2 && viewName !== 'members') return alert("⚠️ 請先加入至少 2 名旅伴！");
+        
         document.querySelectorAll('.sub-view').forEach(v => v.classList.add('hidden'));
         const targetView = document.getElementById('view-' + viewName); if(targetView) targetView.classList.remove('hidden');
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         const targetNav = document.getElementById('nav-' + viewName); if(targetNav) targetNav.classList.add('active');
-        if (viewName === 'settlement') fetchSettlement(); window.scrollTo(0,0);
+        
+        if (viewName === 'list') {
+            await fetchExpenseRecords();
+        } else if (viewName === 'settlement') { 
+            await fetchSettlement(); 
+        } else if (viewName === 'members') {
+            await refreshUsers();
+        }
+        window.scrollTo(0,0);
     }
 
     function openForm() { document.querySelectorAll('.sub-view').forEach(v => v.classList.add('hidden')); document.getElementById('view-form').classList.remove('hidden'); document.querySelector('.bottom-nav').classList.add('hidden'); window.scrollTo(0,0); }

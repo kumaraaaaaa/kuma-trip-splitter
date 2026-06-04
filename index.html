@@ -209,19 +209,60 @@
                     <button id="cancelRepEditBtn" class="btn btn-sm btn-link text-danger p-0 hidden" onclick="resetRepaymentForm()">取消</button>
                 </h5>
                 <input type="hidden" id="editingRepId">
-                <div class="row g-2 align-items-center mb-3">
+                <div class="row g-2 align-items-center mb-2">
                     <div class="col-5"><label class="small fw-bold text-muted">還款人</label><select id="repSender" class="form-select form-select-sm user-select border-0 shadow-sm" onchange="validateRepSelect()"></select></div>
                     <div class="col-2 text-center pt-3"><div class="swap-btn mx-auto shadow-sm" onclick="swapRepUsers()" style="border-color:#e5d3c3; color:var(--bear-brown);"><i class="fa-solid fa-right-left"></i></div></div>
                     <div class="col-5"><label class="small fw-bold text-muted">收款人</label><select id="repReceiver" class="form-select form-select-sm user-select border-0 shadow-sm" onchange="validateRepSelect()"></select></div>
-                    <div class="col-12 mt-2">
-                        <div class="input-group shadow-sm rounded">
-                            <span class="input-group-text bg-white text-dark fw-bold border-0">NT$</span>
-                            <input type="number" id="repAmount" class="form-control fw-bold border-0" placeholder="金額">
-                            <button class="btn btn-primary px-4 fw-bold" onclick="saveRepayment()"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+                
+                <div class="row g-2 align-items-center mb-2">
+                    <div class="col-6">
+                        <select id="repCurr" class="form-select form-select-sm border-0 shadow-sm" onchange="fetchRepRate()">
+                            <optgroup label="熱門">
+                                <option value="TWD">🇹🇼 台幣</option>
+                                <option value="JPY">🇯🇵 日幣</option>
+                                <option value="KRW">🇰🇷 韓元</option>
+                                <option value="USD">🇺🇸 美金</option>
+                                <option value="EUR">🇪🇺 歐元</option>
+                            </optgroup>
+                            <optgroup label="亞洲">
+                                <option value="HKD">🇭🇰 港幣</option>
+                                <option value="THB">🇹🇭 泰銖</option>
+                                <option value="VND">🇻🇳 越南盾</option>
+                                <option value="SGD">🇸🇬 新加坡幣</option>
+                                <option value="CNY">🇨🇳 人民幣</option>
+                                <option value="MOP">🇲🇴 澳門幣</option>
+                            </optgroup>
+                            <optgroup label="歐美/其他">
+                                <option value="GBP">🇬🇧 英鎊</option>
+                                <option value="AUD">🇦🇺 澳幣</option>
+                                <option value="CAD">🇨🇦 加幣</option>
+                                <option value="CHF">🇨🇭 瑞士法郎</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <div class="input-group input-group-sm shadow-sm">
+                            <span class="input-group-text bg-white border-0 text-muted">匯率</span>
+                            <input type="number" id="repRate" class="form-control border-0" value="1.0" step="0.0001" oninput="calcRepTWD()">
                         </div>
                     </div>
                 </div>
-                <label class="small fw-bold text-muted mb-2"><i class="fa-solid fa-history me-1"></i>歷史紀錄</label>
+                
+                <div class="row g-2 align-items-center mb-3">
+                    <div class="col-12">
+                        <div class="input-group shadow-sm rounded">
+                            <span class="input-group-text bg-white text-dark fw-bold border-0" id="repCurrencySymbol">NT$</span>
+                            <input type="number" id="repAmount" class="form-control fw-bold border-0" placeholder="輸入還款金額" oninput="calcRepTWD()">
+                            <button class="btn btn-primary px-4 fw-bold" onclick="saveRepayment()"><i class="fa-solid fa-paper-plane"></i></button>
+                        </div>
+                        <div id="repCalcHint" class="small text-end mt-1 hidden" style="color: var(--bear-brown);">
+                            自動換算結算額：<span class="fw-bold" id="repTwdAmount">NT$ 0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <label class="small fw-bold text-muted mb-2"><i class="fa-solid fa-history me-1"></i>歷史紀錄 (以台幣計)</label>
                 <div id="repaymentHistory" class="bg-white rounded p-2 shadow-sm" style="max-height: 150px; overflow-y: auto; border: 1px solid #e5d3c3;"></div>
             </div>
 
@@ -577,23 +618,78 @@
     async function deleteRepayment(id) { if(confirm("撤銷還款紀錄？")) { await apiFetch(`/repayments/${id}`, {method:'DELETE'}); await triggerGlobalRefresh(); } }
     async function deleteTrip() { if(confirm("確定刪除整個行程與所有帳目？此動作無法復原！")) { await apiFetch(`/trips/${tid}`, {method:'DELETE'}); goHome(); } }
 
-    async function saveRepayment() {
-        const payload = { sender_id: parseInt(document.getElementById('repSender').value), receiver_id: parseInt(document.getElementById('repReceiver').value), amount: parseFloat(document.getElementById('repAmount').value) };
-        if(!payload.amount || isNaN(payload.amount)) return alert("金額錯誤");
-        const id = document.getElementById('editingRepId').value;
-        await apiFetch(id ? `/repayments/${id}` : `/trips/${tid}/repayments`, { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
-        resetRepaymentForm(); await triggerGlobalRefresh();
-    }
     function loadRepaymentForEdit(id, sId, rId, amt) {
         document.getElementById('editingRepId').value = id; document.getElementById('repFormTitle').innerText = "修正還款...";
         document.getElementById('repaymentCard').classList.add('repayment-edit-active'); document.getElementById('cancelRepEditBtn').classList.remove('hidden');
         document.getElementById('repSender').value = sId; document.getElementById('repReceiver').value = rId; document.getElementById('repAmount').value = amt;
         validateRepSelect(); window.scrollTo(0,0);
     }
+
+    // ==========================================
+    // 還款匯率與自動計算邏輯
+    // ==========================================
+    async function fetchRepRate() { 
+        const curr = document.getElementById('repCurr').value; 
+        document.getElementById('repCurrencySymbol').innerText = (curr === 'TWD') ? 'NT$' : curr;
+        try { 
+            const res = await fetch(`/get-rate/${curr}`); 
+            const data = await res.json(); 
+            document.getElementById('repRate').value = data.rate.toFixed(4); 
+            calcRepTWD(); 
+        } catch(e) {} 
+    }
+    
+    function calcRepTWD() {
+        const curr = document.getElementById('repCurr').value;
+        const amt = parseFloat(document.getElementById('repAmount').value) || 0;
+        const rate = parseFloat(document.getElementById('repRate').value) || 1.0;
+        const hint = document.getElementById('repCalcHint');
+        
+        if (curr !== 'TWD' && amt > 0) {
+            hint.classList.remove('hidden');
+            document.getElementById('repTwdAmount').innerText = `NT$ ${Math.round(amt * rate)}`;
+        } else {
+            hint.classList.add('hidden');
+        }
+    }
+
+    // ==========================================
+    // 儲存還款與重置表單邏輯
+    // ==========================================
+    async function saveRepayment() {
+        const rawAmount = parseFloat(document.getElementById('repAmount').value);
+        const rate = parseFloat(document.getElementById('repRate').value) || 1.0;
+        // 自動將外幣依照匯率轉換為台幣整數，以便系統結算
+        const finalAmount = Math.round((rawAmount || 0) * rate); 
+
+        const payload = { 
+            sender_id: parseInt(document.getElementById('repSender').value), 
+            receiver_id: parseInt(document.getElementById('repReceiver').value), 
+            amount: finalAmount 
+        };
+        
+        if(!payload.amount || isNaN(payload.amount)) return alert("請輸入正確的還款金額！");
+        
+        const id = document.getElementById('editingRepId').value;
+        await apiFetch(id ? `/repayments/${id}` : `/trips/${tid}/repayments`, { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+        resetRepaymentForm(); 
+        await triggerGlobalRefresh();
+    }
+
     function resetRepaymentForm() {
-        document.getElementById('editingRepId').value = ''; document.getElementById('repFormTitle').innerText = "還款登記";
-        document.getElementById('repaymentCard').classList.remove('repayment-edit-active'); document.getElementById('cancelRepEditBtn').classList.add('hidden');
-        document.getElementById('repAmount').value = ''; updateDropdowns();
+        document.getElementById('editingRepId').value = ''; 
+        document.getElementById('repFormTitle').innerText = "還款登記";
+        document.getElementById('repaymentCard').classList.remove('repayment-edit-active'); 
+        document.getElementById('cancelRepEditBtn').classList.add('hidden');
+        document.getElementById('repAmount').value = ''; 
+        
+        // 重置幣別回到預設的台幣
+        document.getElementById('repCurr').value = 'TWD';
+        document.getElementById('repRate').value = '1.0';
+        document.getElementById('repCurrencySymbol').innerText = 'NT$';
+        document.getElementById('repCalcHint').classList.add('hidden');
+        
+        updateDropdowns();
     }
 
     const currencyFlagMap = { "TWD": "🇹🇼 TWD", "JPY": "🇯🇵 JPY", "KRW": "🇰🇷 KRW", "USD": "🇺🇸 USD", "EUR": "🇪🇺 EUR", "HKD": "🇭🇰 HKD", "THB": "🇹🇭 THB", "VND": "🇻🇳 VND", "SGD": "🇸🇬 SGD", "CNY": "🇨🇳 CNY", "MOP": "🇲🇴 MOP", "GBP": "🇬🇧 GBP", "AUD": "🇦🇺 AUD", "CAD": "🇨🇦 CAD", "CHF": "🇨🇭 CHF" };

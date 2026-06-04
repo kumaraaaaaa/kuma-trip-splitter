@@ -394,9 +394,38 @@
     async function triggerGlobalRefresh() {
         if (isRefreshing) return; 
         isRefreshing = true;
-        try { await refreshUsers(); await fetchExpenseRecords(); await fetchSettlement(); } 
-        catch (error) { console.error("同步失敗:", error); } 
-        finally { isRefreshing = false; }
+        
+        // 抓取畫面上的 Toast 元素
+        const toast = document.getElementById('syncToast');
+        
+        try { 
+            // 讓按鈕或提示顯示載入中
+            if (toast) {
+                toast.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin me-2"></i>同步資料中...';
+                toast.style.opacity = '1';
+            }
+            
+            await refreshUsers(); 
+            await fetchExpenseRecords(); 
+            await fetchSettlement(); 
+            
+            // 成功後變成打勾，2秒後消失
+            if (toast) {
+                toast.innerHTML = '<i class="fa-solid fa-check me-2"></i>資料已更新';
+                setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+            }
+        } 
+        catch (error) { 
+            console.error("同步失敗:", error); 
+            // 失敗提示
+            if (toast) {
+                toast.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2"></i>連線失敗，請重試';
+                setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+            }
+        } 
+        finally { 
+            isRefreshing = false; 
+        }
     }
 
     // --- 成員 API ---

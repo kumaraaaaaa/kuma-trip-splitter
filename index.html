@@ -66,29 +66,23 @@
 <!-- 詳細畫面 -->
 <div id="pageDetail" class="hidden">
     <!-- 頂部導航 -->
-    <!-- 頂部導航 -->
     <div class="header-bar">
         <div class="container-app d-flex justify-content-between align-items-center px-3 w-100">
-            
-            <!-- 左側：返回 + 標題 + 重新整理 -->
-            <div class="d-flex align-items-center flex-grow-1 text-truncate pe-3">
-                <button class="btn btn-sm btn-header-back rounded-circle shadow-sm" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;" onclick="goHome()">
+            <div class="d-flex align-items-center flex-grow-1 pe-3" style="min-width: 0;">
+                <button class="btn btn-sm btn-header-back rounded-circle shadow-sm flex-shrink-0" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;" onclick="goHome()">
                     <i class="fa-solid fa-arrow-left"></i>
                 </button>
+                
                 <h4 id="currentTripTitle" class="mb-0 fw-bold text-truncate ms-3" style="font-size: 1.3rem;"></h4>
                 
-                <!-- 重新整理按鈕 (換成白色以搭配背景) -->
-                <button class="btn btn-sm text-white ms-2" style="opacity: 0.8;" onclick="triggerGlobalRefresh()" title="同步最新帳目">
-                    <i class="fa-solid fa-rotate"></i>
+                <button class="btn btn-sm btn-light text-primary fw-bold ms-2 flex-shrink-0 shadow-sm" onclick="triggerGlobalRefresh()" title="同步最新帳目">
+                    <i class="fa-solid fa-rotate"></i> 更新
                 </button>
             </div>
-            
-            <!-- 右側：邀請碼 -->
             <div class="bg-light rounded px-3 py-1 shadow-sm text-center cursor-pointer flex-shrink-0" onclick="copyInviteCode()" title="點擊複製邀請碼" style="border: 2px solid var(--honey-color); color: var(--text-dark);">
                 <span class="small d-block fw-bold" style="font-size: 0.65rem;">專屬邀請碼</span>
                 <span id="tripInviteCode" class="fw-bold tracking-wide" style="font-size: 1.1rem; letter-spacing: 1px;"></span>
             </div>
-            
         </div>
     </div>
 

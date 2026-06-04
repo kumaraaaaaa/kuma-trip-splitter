@@ -286,7 +286,22 @@ def delete_expense(expense_id: int, background_tasks: BackgroundTasks, db: Sessi
 
 @app.get("/trips/{trip_id}/expenses")
 def get_trip_expenses(trip_id: int, db: Session = Depends(get_db)):
-    return db.query(models.Expense).filter(models.Expense.trip_id == trip_id).order_by(models.Expense.consumption_date.desc(), models.Expense.consumption_time.desc()).all()
+    expenses = db.query(models.Expense).filter(models.Expense.trip_id == trip_id).order_by(models.Expense.consumption_date.desc(), models.Expense.consumption_time.desc()).all()
+    
+    # 手動把「付款人」與「分攤人」的詳細資料包裝進去，讓前端篩選器可以讀取
+    return [
+        {
+            "id": e.id,
+            "description": e.description,
+            "amount": e.amount,
+            "currency": e.currency,
+            "exchange_rate": e.exchange_rate,
+            "consumption_date": e.consumption_date,
+            "consumption_time": e.consumption_time,
+            "payments": [{"user_id": p.user_id, "amount": p.amount_paid} for p in e.payments],
+            "splits": [{"user_id": s.debtor_id, "amount": s.amount_owed} for s in e.splits]
+        } for e in expenses
+    ]
 
 # --- 還款管理 ---
 @app.post("/trips/{trip_id}/repayments")

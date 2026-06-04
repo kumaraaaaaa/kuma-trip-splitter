@@ -733,8 +733,8 @@
         const type = document.getElementById('filterType').value; // 抓取類型設定
 
         let filtered = allExpensesCache.filter(e => {
-            // 核心邏輯判斷：是否為「純個人自費」(只有1人付款，且只有同1人分攤)
-            const isPersonal = (e.payments.length === 1 && e.splits.length === 1 && e.payments[0].user_id === e.splits[0].user_id);
+            // 確保後端有傳資料過來才做判斷
+            const isPersonal = (e.payments && e.splits && e.payments.length === 1 && e.splits.length === 1 && e.payments[0].user_id === e.splits[0].user_id);
             
             let typeMatch = true;
             if (type === 'shared') {

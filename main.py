@@ -162,9 +162,41 @@ def join_trip(code: str, x_user_id: int = Header(None), db: Session = Depends(ge
 
 @app.delete("/trips/{trip_id}")
 def delete_trip(trip_id: int, db: Session = Depends(get_db)):
-    t = db.query(models.Trip).filter(models.Trip.id == trip_id).first()
-    if t: db.delete(t); db.commit()
-    return {"status": "ok"}
+    # 1. 先確認有沒有這趟行程
+    trip = db.query(models.Trip).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="找不到此行程")
+
+    try:
+        # 2. 依序手動刪除所有「依附在這趟行程底下」的關聯資料
+        # (注意：必須先刪除最底層的明細，再刪除主檔)
+        
+        # 刪除與行程關聯的橋接表 (user_trips)
+        db.query(models.UserTrip).filter(models.UserTrip.trip_id == trip_id).delete()
+        
+        # 刪除還款紀錄 (repayments)
+        db.query(models.Repayment).filter(models.Repayment.trip_id == trip_id).delete()
+
+        # 刪除這趟行程的所有花費 (這會連動刪除 expense_payments 跟 expense_splits，前提是你的 Expense model 刪除正常)
+        # 為了保險起見，我們先把花費撈出來，逐一刪除
+        expenses = db.query(models.Expense).filter(models.Expense.trip_id == trip_id).all()
+        for e in expenses:
+            db.query(models.ExpensePayment).filter(models.ExpensePayment.expense_id == e.id).delete()
+            db.query(models.ExpenseSplit).filter(models.ExpenseSplit.expense_id == e.id).delete()
+            db.delete(e)
+
+        # 刪除旅伴名單 (users)
+        db.query(models.User).filter(models.User.trip_id == trip_id).delete()
+
+        # 3. 障礙物都清空了，現在可以安全刪除行程本身了！
+        db.delete(trip)
+        db.commit()
+        return {"status": "success", "message": "行程與相關資料已徹底刪除"}
+
+    except Exception as e:
+        # 如果發生任何錯誤，就還原資料庫狀態，避免刪除到一半
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- 旅伴管理 ---
 @app.get("/trips/{trip_id}/users")
@@ -201,12 +233,16 @@ def restore_user(user_id: int, db: Session = Depends(get_db)):
 # --- 帳目管理 ---
 @app.post("/expenses")
 def create_expense(exp: ExpenseCreate, trip_id: int, db: Session = Depends(get_db)):
+    # 建立花費主檔
     new_exp = models.Expense(
         trip_id=trip_id, amount=exp.amount, currency=exp.currency,
         exchange_rate=exp.exchange_rate, description=exp.description,
-        consumption_date=exp.consumption_date, consumption_time=exp.consumption_time
+        consumption_date=exp.consumption_date, 
+        consumption_time=exp.consumption_time
     )
     db.add(new_exp); db.commit(); db.refresh(new_exp)
+
+    # 寫入代墊者與分攤者明細 (一對多關聯)
     for p in exp.payments: db.add(models.ExpensePayment(expense_id=new_exp.id, user_id=p.user_id, amount_paid=p.amount_paid))
     for s in exp.splits: db.add(models.ExpenseSplit(expense_id=new_exp.id, debtor_id=s.user_id, amount_owed=s.amount_owed))
     db.commit()
@@ -214,10 +250,17 @@ def create_expense(exp: ExpenseCreate, trip_id: int, db: Session = Depends(get_d
 
 @app.get("/expenses/{expense_id}")
 def get_expense_detail(expense_id: int, db: Session = Depends(get_db)):
+    # 尋找特定 ID 的花費主檔
     e = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if not e: raise HTTPException(status_code=404)
+    # 將主檔與其一對多的關聯明細 (payments, splits) 獨立打包回傳
     return {
-        "description": e.description, "amount": e.amount, "currency": e.currency, "exchange_rate": e.exchange_rate, "date": e.consumption_date, "time": e.consumption_time,
+        "description": e.description, 
+        "amount": e.amount, 
+        "currency": e.currency, 
+        "exchange_rate": e.exchange_rate, 
+        "date": e.consumption_date, 
+        "time": e.consumption_time,
         "payments": [{"user_id": p.user_id, "amount": p.amount_paid} for p in e.payments],
         "splits": [{"user_id": s.debtor_id, "amount": s.amount_owed} for s in e.splits]
     }
@@ -226,12 +269,17 @@ def get_expense_detail(expense_id: int, db: Session = Depends(get_db)):
 def update_expense(expense_id: int, exp: ExpenseCreate, db: Session = Depends(get_db)):
     e = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if not e: raise HTTPException(status_code=404)
+
+    # 更新主檔屬性
     e.description, e.amount, e.currency, e.exchange_rate = exp.description, exp.amount, exp.currency, exp.exchange_rate
     e.consumption_date, e.consumption_time = exp.consumption_date, exp.consumption_time
+
+    # 清除舊有關聯並寫入新關聯
     db.query(models.ExpensePayment).filter(models.ExpensePayment.expense_id == expense_id).delete()
     db.query(models.ExpenseSplit).filter(models.ExpenseSplit.expense_id == expense_id).delete()
     for p in exp.payments: db.add(models.ExpensePayment(expense_id=e.id, user_id=p.user_id, amount_paid=p.amount_paid))
     for s in exp.splits: db.add(models.ExpenseSplit(expense_id=e.id, debtor_id=s.user_id, amount_owed=s.amount_owed))
+
     db.commit()
     return {"status": "ok"}
 
@@ -239,14 +287,16 @@ def update_expense(expense_id: int, exp: ExpenseCreate, db: Session = Depends(ge
 def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     e = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if e: 
-        trip_id = e.trip_id
-        db.delete(e); db.commit()
+        db.delete(e)
+        db.commit() # 關聯資料會因 Cascade 設定自動一併刪除
     return {"status": "ok"}
 
 @app.get("/trips/{trip_id}/expenses")
 def get_trip_expenses(trip_id: int, db: Session = Depends(get_db)):
+    # 透過 ORM 進行資料篩選與排序
     expenses = db.query(models.Expense).filter(models.Expense.trip_id == trip_id).order_by(models.Expense.consumption_date.desc(), models.Expense.consumption_time.desc()).all()
-    # 手動把「付款人」與「分攤人」的詳細資料包裝進去，讓前端篩選器可以讀取
+
+    # 將查詢結果與關聯的付款/分攤明細包裝回傳給前端
     return [
         {
             "id": e.id,

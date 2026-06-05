@@ -713,14 +713,16 @@
         }
     }
     function renderExpenseRecords() {
+        // 取得畫面上所有篩選器的目前設定值
         const keyword = document.getElementById('filterKeyword').value.toLowerCase();
         const curr = document.getElementById('filterCurrency').value;
         const start = document.getElementById('filterStartDate').value;
         const end = document.getElementById('filterEndDate').value;
         const type = document.getElementById('filterType').value; // 抓取類型設定
 
+        // 對快取的明細資料進行多維度過濾
         let filtered = allExpensesCache.filter(e => {
-            // 確保後端有傳資料過來才做判斷
+            // 判斷是否為「純個人自費」(只有1人付款，且只有同1人分攤)
             const isPersonal = (e.payments && e.splits && e.payments.length === 1 && e.splits.length === 1 && e.payments[0].user_id === e.splits[0].user_id);
             
             let typeMatch = true;
@@ -728,9 +730,10 @@
                 typeMatch = !isPersonal; // 排除個人自費，剩下的全部算共同花費
             } else if (type.startsWith('personal_')) {
                 const uid = parseInt(type.split('_')[1]);
-                typeMatch = (isPersonal && e.payments[0].user_id === uid); // 必須是指定的該成員個人自費
+                typeMatch = (isPersonal && e.payments[0].user_id === uid); // 配對指定成員的自費
             }
 
+            // 回傳同時符合所有條件的帳目 (類型、關鍵字、幣別、日期區間)
             return typeMatch && 
                    e.description.toLowerCase().includes(keyword) && 
                    (curr === "" || e.currency === curr) && 

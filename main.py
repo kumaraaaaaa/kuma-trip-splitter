@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -171,8 +171,7 @@ def delete_trip(trip_id: int, db: Session = Depends(get_db)):
         # 2. 依序手動刪除所有「依附在這趟行程底下」的關聯資料
         # (注意：必須先刪除最底層的明細，再刪除主檔)
         
-        # 刪除與行程關聯的橋接表 (user_trips)
-        db.query(models.UserTrip).filter(models.UserTrip.trip_id == trip_id).delete()
+        db.execute(text("DELETE FROM user_trips WHERE trip_id = :trip_id"), {"trip_id": trip_id})
         
         # 刪除還款紀錄 (repayments)
         db.query(models.Repayment).filter(models.Repayment.trip_id == trip_id).delete()
